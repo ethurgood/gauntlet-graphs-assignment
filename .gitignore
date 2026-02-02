@@ -9,3 +9,9 @@
 
 .env
 *.iml
+.idea
+.python-version
+
+**/__pycache__/**
+/output/
+/presentation
