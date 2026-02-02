@@ -1,0 +1,217 @@
+# Golden Set - Premises Processing Test Cases
+#
+# Defines expected behavior for each test case to validate graph execution
+
+version: "1.0"
+description: "Premises Processing Golden Set - 10 test cases"
+
+test_cases:
+  # ==========================================================================
+  # CATEGORY 1: Case Normalization
+  # ==========================================================================
+
+  - id: "test_01"
+    file: "golden_set/test_data/test_01_lowercase.csv"
+    category: "case_normalization"
+    description: "Lowercase name should be standardized to title case"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "occupancy_classification"
+      - "format_output"
+    expected_output_file: "processed_premises.csv"
+    checks:
+      places_found: true
+      standardized_name_format: "title_case"
+      duplicate_detected: true  # Database has nearby premises on same street
+      has_occupancy_type: true
+      in_errors: false
+
+  - id: "test_02"
+    file: "golden_set/test_data/test_02_mixedcase.csv"
+    category: "case_normalization"
+    description: "UPPERCASE name should be standardized"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "occupancy_classification"
+      - "format_output"
+    expected_output_file: "processed_premises.csv"
+    checks:
+      places_found: true
+      standardized_name_format: "title_case"
+      duplicate_detected: true  # Database has nearby premise on same street
+      has_occupancy_type: true
+      in_errors: false
+
+  # ==========================================================================
+  # CATEGORY 2: High Confidence Duplicates (score >= 8)
+  # ==========================================================================
+
+  - id: "test_03"
+    file: "golden_set/test_data/test_03_slight_name_diff.csv"
+    category: "high_confidence_duplicate"
+    description: "Slight name variation should score >= 8 confidence"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "confidence_scoring"
+      - "log_duplicate"
+    expected_output_file: "duplicates.csv"
+    checks:
+      places_found: true
+      duplicate_detected: true
+      confidence_score_min: 8
+      confidence_score_max: 10
+      in_duplicates_log: true
+      in_processed: false
+      in_errors: false
+
+  - id: "test_04"
+    file: "golden_set/test_data/test_04_abbreviation.csv"
+    category: "high_confidence_duplicate"
+    description: "Address abbreviation should still match (high confidence)"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "confidence_scoring"
+      - "log_duplicate"
+    expected_output_file: "duplicates.csv"
+    checks:
+      places_found: true
+      duplicate_detected: true
+      confidence_score_min: 8
+      confidence_score_max: 10
+      in_duplicates_log: true
+      in_processed: false
+      in_errors: false
+
+  # ==========================================================================
+  # CATEGORY 3: Low Confidence Matches (score < 8)
+  # ==========================================================================
+
+  - id: "test_05"
+    file: "golden_set/test_data/test_05_different_name.csv"
+    category: "low_confidence_match"
+    description: "Very different name should score < 8, process as new"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "confidence_scoring"
+      - "occupancy_classification"
+      - "format_output"
+    expected_output_file: "processed_premises.csv"
+    checks:
+      places_found: true
+      duplicate_detected: true  # Found in DB but low confidence
+      confidence_score_max: 7
+      in_processed: true
+      in_duplicates_log: false
+      in_errors: false
+
+  - id: "test_06"
+    file: "golden_set/test_data/test_06_rebrand.csv"
+    category: "low_confidence_match"
+    description: "Rebrand scenario - different name, same location"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "confidence_scoring"
+      - "occupancy_classification"
+      - "format_output"
+    expected_output_file: "processed_premises.csv"
+    checks:
+      places_found: true
+      duplicate_detected: true  # Found in DB but low confidence
+      confidence_score_max: 7
+      in_processed: true
+      in_duplicates_log: false
+      in_errors: false
+
+  # ==========================================================================
+  # CATEGORY 4: Potential Duplicates (edge cases, score 6-7)
+  # ==========================================================================
+
+  - id: "test_07"
+    file: "golden_set/test_data/test_07_near_duplicate.csv"
+    category: "edge_case_duplicate"
+    description: "Branch location - moderate confidence"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "confidence_scoring"
+      - "occupancy_classification"  # Should route here if score < 8
+    expected_output_file: "processed_premises.csv"  # OR duplicates.csv depending on score
+    checks:
+      places_found: true
+      duplicate_detected: true
+      confidence_score_min: 5
+      confidence_score_max: 9  # Could go either way
+      # Note: Exact routing depends on LLM confidence score
+
+  - id: "test_08"
+    file: "golden_set/test_data/test_08_chain_location.csv"
+    category: "edge_case_duplicate"
+    description: "Chain location suffix - moderate confidence"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "standardize"
+      - "database_query"
+      - "confidence_scoring"
+    expected_output_file: "processed_premises.csv"  # OR duplicates.csv
+    checks:
+      places_found: true
+      duplicate_detected: true
+      confidence_score_min: 5
+      confidence_score_max: 9
+
+  # ==========================================================================
+  # CATEGORY 5: No Places API Match (errors)
+  # ==========================================================================
+
+  - id: "test_09"
+    file: "golden_set/test_data/test_09_imaginary.csv"
+    category: "no_places_match"
+    description: "Imaginary location - no Places API match"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "error_handler"
+    expected_output_file: "errors.csv"
+    checks:
+      places_found: false
+      in_errors: true
+      in_processed: false
+      in_duplicates_log: false
+      error_reason_contains: "No Google Places match"
+
+  - id: "test_10"
+    file: "golden_set/test_data/test_10_fictional.csv"
+    category: "no_places_match"
+    description: "Fictional business - no Places API match"
+    expected_flow:
+      - "parse_row"
+      - "places_search"
+      - "error_handler"
+    expected_output_file: "errors.csv"
+    checks:
+      places_found: false
+      in_errors: true
+      in_processed: false
+      in_duplicates_log: false
+      error_reason_contains: "No Google Places match"
